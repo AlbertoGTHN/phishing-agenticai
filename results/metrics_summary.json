@@ -1,0 +1,107 @@
+{
+  "n_total": 500,
+  "n_phishing": 250,
+  "n_legit": 250,
+  "confusion_matrix": {
+    "tp": 241,
+    "tn": 226,
+    "fp": 24,
+    "fn": 9,
+    "matrix": [
+      [
+        226,
+        24
+      ],
+      [
+        9,
+        241
+      ]
+    ]
+  },
+  "accuracy": 0.934,
+  "macro_precision": 0.9356,
+  "macro_recall": 0.934,
+  "macro_f1": 0.9339,
+  "weighted_f1": 0.9339,
+  "fpr": 0.096,
+  "fnr": 0.036,
+  "roc_auc": 0.9849,
+  "cohen_kappa": 0.868,
+  "phishing_class": {
+    "precision": 0.9094,
+    "recall": 0.964,
+    "f1": 0.9359,
+    "support": 250
+  },
+  "legit_class": {
+    "precision": 0.9617,
+    "recall": 0.904,
+    "f1": 0.932,
+    "support": 250
+  },
+  "confidence_intervals_95": {
+    "accuracy": [
+      0.911,
+      0.956
+    ],
+    "macro_f1": [
+      0.91,
+      0.956
+    ],
+    "roc_auc": [
+      0.9767,
+      0.9927
+    ],
+    "fpr": [
+      0.0606,
+      0.1318
+    ],
+    "fnr": [
+      0.0153,
+      0.0587
+    ]
+  },
+  "method_distribution": {
+    "random_forest": 500
+  },
+  "n_degraded": 17,
+  "n_errors": 0,
+  "avg_conf_phishing": 0.7902,
+  "avg_conf_legit": 0.1748,
+  "indicator_fire_counts": {
+    "urgency_detected": 32,
+    "authority_detected": 211,
+    "pressure_detected": 42,
+    "generic_greeting_detected": 32,
+    "reward_lure_detected": 36,
+    "credential_request_detected": 26,
+    "grammatical_anomaly_detected": 34,
+    "brand_impersonation": 119,
+    "url_ip_based": 0,
+    "url_shortener": 0,
+    "url_suspicious_tld": 0,
+    "url_no_https": 83,
+    "url_typosquatting": 0,
+    "url_suspicious_path": 0,
+    "url_free_hosting": 0,
+    "header_spf_fail": 0,
+    "header_dkim_fail": 0,
+    "header_display_mismatch": 0,
+    "html_external_form": 0,
+    "html_obfuscated_js": 0
+  },
+  "fn_category_counts": {
+    "urgency": 5,
+    "reward_lures": 2,
+    "pressure": 1,
+    "authority": 1
+  },
+  "rule_only_comparison": {
+    "accuracy": 0.588,
+    "macro_f1": 0.5701,
+    "fpr": 0.208,
+    "fnr": 0.616,
+    "roc_auc": 0.5949,
+    "cohen_kappa": 0.176
+  }
+}
