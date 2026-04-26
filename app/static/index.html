@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic AI Phishing Detector</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: { 800: '#1a1a2e', 900: '#0f0f1a', 700: '#252545' },
+                        accent: { green: '#00d26a', red: '#ff4757', yellow: '#ffa502', blue: '#3742fa' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background: #0f0f1a; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .glass { background: rgba(26, 26, 46, 0.8); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.08); }
+        .tab-active { background: rgba(55, 66, 250, 0.3); border-bottom: 2px solid #3742fa; color: #fff; }
+        .tab-inactive { color: #888; }
+        .tab-inactive:hover { color: #ccc; }
+        .drop-zone { border: 2px dashed rgba(255,255,255,0.2); transition: all 0.3s; }
+        .drop-zone.dragover { border-color: #3742fa; background: rgba(55,66,250,0.1); }
+        .gauge-circle { transition: stroke-dashoffset 1s ease; }
+        .fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .progress-bar { transition: width 0.8s ease; }
+        .spinner { border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid #3742fa; border-radius: 50%; width: 40px; height: 40px; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+        .nav-btn { padding: 6px 16px; border-radius: 8px; font-size: 0.85rem; font-weight: 500; transition: all 0.2s; cursor: pointer; border: 1px solid transparent; }
+        .nav-btn.active { background: rgba(55,66,250,0.25); border-color: rgba(55,66,250,0.4); color: #fff; }
+        .nav-btn:not(.active) { color: #888; }
+        .nav-btn:not(.active):hover { color: #ccc; background: rgba(255,255,255,0.05); }
+        /* Chat panel */
+        .chat-messages { overflow-y: auto; }
+        .chat-msg-user { background: rgba(55,66,250,0.2); border: 1px solid rgba(55,66,250,0.3); }
+        .chat-msg-bot { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); }
+        .chat-msg-system { background: rgba(0,210,106,0.08); border: 1px solid rgba(0,210,106,0.2); }
+        .chat-spinner { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.1); border-top: 2px solid #3742fa; border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block; vertical-align: middle; }
+        /* Layout */
+        .app-layout { display: flex; height: calc(100vh - 65px); }
+        .main-content { flex: 1; overflow-y: auto; min-width: 0; }
+        .side-panel { width: 380px; min-width: 380px; display: flex; flex-direction: column; border-left: 1px solid rgba(255,255,255,0.08); }
+        @media (max-width: 1024px) { .side-panel { display: none; } }
+    </style>
+</head>
+<body class="text-gray-200">
+
+<!-- Header -->
+<header class="glass sticky top-0 z-50 px-6 py-4">
+    <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <svg class="w-8 h-8 text-accent-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+            </svg>
+            <div>
+                <h1 class="text-xl font-bold text-white">Agentic AI Phishing Detector</h1>
+                <p class="text-xs text-gray-500">Dual-Engine MCO Architecture</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <button onclick="showPage('analyzer')" id="nav-analyzer" class="nav-btn active">Analyzer</button>
+            <button onclick="showPage('dashboard')" id="nav-dashboard" class="nav-btn">Dashboard</button>
+            <button onclick="showPage('history')" id="nav-history" class="nav-btn">History</button>
+            <button onclick="showPage('about')" id="nav-about" class="nav-btn">About</button>
+            <span class="badge bg-accent-blue/20 text-accent-blue border border-accent-blue/30 ml-2">MCO</span>
+            <span class="badge bg-green-500/20 text-green-400 border border-green-500/30" id="statusBadge">Ready</span>
+        </div>
+    </div>
+</header>
+
+<!-- App Layout: Main + Side Panel -->
+<div class="app-layout">
+
+    <!-- ==================== MAIN CONTENT ==================== -->
+    <div class="main-content px-6 py-8">
+        <div class="max-w-4xl mx-auto">
+
+            <!-- ANALYZER PAGE -->
+            <div id="page-analyzer" class="space-y-8">
+                <section class="glass rounded-xl overflow-hidden">
+                    <div class="flex border-b border-white/10">
+                        <button onclick="switchTab('eml')" id="tab-eml" class="tab-active px-6 py-3 text-sm font-medium flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                            Upload .eml
+                        </button>
+                        <button onclick="switchTab('text')" id="tab-text" class="tab-inactive px-6 py-3 text-sm font-medium flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                            Paste Text
+                        </button>
+                        <button onclick="switchTab('screenshot')" id="tab-screenshot" class="tab-inactive px-6 py-3 text-sm font-medium flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                            Upload Screenshot
+                        </button>
+                    </div>
+                    <div class="p-6">
+                        <div id="panel-eml">
+                            <div id="dropZoneEml" class="drop-zone rounded-lg p-12 text-center cursor-pointer" onclick="document.getElementById('emlInput').click()">
+                                <svg class="w-12 h-12 mx-auto mb-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                <p class="text-gray-400 mb-1">Drag & drop your <span class="text-white font-medium">.eml</span> file here</p>
+                                <p class="text-gray-600 text-sm">or click to browse</p>
+                                <p id="emlFileName" class="text-accent-blue mt-3 text-sm hidden"></p>
+                            </div>
+                            <input type="file" id="emlInput" accept=".eml" class="hidden" onchange="handleEmlSelect(event)">
+                        </div>
+                        <div id="panel-text" class="hidden space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Subject</label>
+                                <input type="text" id="textSubject" placeholder="Email subject line..." class="w-full bg-dark-900 border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-accent-blue/50 text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Body</label>
+                                <textarea id="textBody" rows="8" placeholder="Paste the email body text here..." class="w-full bg-dark-900 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-accent-blue/50 text-sm resize-y"></textarea>
+                            </div>
+                        </div>
+                        <div id="panel-screenshot" class="hidden">
+                            <div id="dropZoneScreenshot" class="drop-zone rounded-lg p-12 text-center cursor-pointer" onclick="document.getElementById('screenshotInput').click()">
+                                <svg class="w-12 h-12 mx-auto mb-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                <p class="text-gray-400 mb-1">Drag & drop a <span class="text-white font-medium">screenshot</span> here</p>
+                                <p class="text-gray-600 text-sm">PNG, JPG supported — text will be extracted via OCR</p>
+                                <p id="screenshotFileName" class="text-accent-blue mt-3 text-sm hidden"></p>
+                            </div>
+                            <input type="file" id="screenshotInput" accept="image/png,image/jpeg,image/jpg,image/webp" class="hidden" onchange="handleScreenshotSelect(event)">
+                        </div>
+                    </div>
+                    <div class="px-6 pb-6">
+                        <button id="analyzeBtn" onclick="analyze()" class="w-full bg-accent-blue hover:bg-accent-blue/80 text-white font-semibold py-3.5 rounded-lg transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                            Analyze Email
+                        </button>
+                    </div>
+                </section>
+
+                <div id="loadingSection" class="hidden text-center py-12">
+                    <div class="spinner mx-auto mb-4"></div>
+                    <p class="text-gray-400">Analyzing email through MCO pipeline...</p>
+                    <p class="text-gray-600 text-sm mt-1">Semantic Engine + Structural Engine + Classification</p>
+                </div>
+
+                <section id="resultsSection" class="hidden fade-in space-y-6">
+                    <div id="verdictBanner" class="rounded-xl p-6 text-center">
+                        <h2 id="verdictText" class="text-3xl font-bold mb-1"></h2>
+                        <p id="verdictSub" class="text-sm opacity-80"></p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="glass rounded-xl p-6 flex flex-col items-center">
+                            <h3 class="text-sm font-medium text-gray-400 mb-4">Confidence Score</h3>
+                            <div class="relative w-36 h-36">
+                                <svg class="w-full h-full transform -rotate-90" viewBox="0 0 120 120">
+                                    <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="10"/>
+                                    <circle id="gaugeCircle" class="gauge-circle" cx="60" cy="60" r="52" fill="none" stroke="#3742fa" stroke-width="10" stroke-linecap="round" stroke-dasharray="326.73" stroke-dashoffset="326.73"/>
+                                </svg>
+                                <div class="absolute inset-0 flex items-center justify-center">
+                                    <span id="gaugeText" class="text-3xl font-bold text-white">0%</span>
+                                </div>
+                            </div>
+                            <p id="methodText" class="text-xs text-gray-500 mt-3"></p>
+                        </div>
+                        <div class="glass rounded-xl p-6 flex flex-col items-center justify-center">
+                            <h3 class="text-sm font-medium text-gray-400 mb-4">Recommended Action</h3>
+                            <div id="actionIcon" class="text-5xl mb-3"></div>
+                            <p id="actionLabel" class="text-lg font-semibold"></p>
+                            <p id="actionDesc" class="text-sm text-gray-400 mt-2 text-center"></p>
+                        </div>
+                    </div>
+                    <div class="glass rounded-xl p-6">
+                        <h3 class="text-sm font-medium text-gray-400 mb-5">Threat Indicators</h3>
+                        <div class="space-y-4" id="indicatorsContainer"></div>
+                    </div>
+                    <div class="glass rounded-xl p-6">
+                        <h3 class="text-sm font-medium text-gray-400 mb-3">Analysis Explanation</h3>
+                        <p id="explanationText" class="text-gray-300 text-sm leading-relaxed"></p>
+                    </div>
+                    <div id="educationSection" class="glass rounded-xl p-6 border-l-4 border-accent-yellow">
+                        <h3 class="text-sm font-medium text-accent-yellow mb-3 flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                            Security Education
+                        </h3>
+                        <p id="educationText" class="text-gray-300 text-sm leading-relaxed"></p>
+                    </div>
+                    <details class="glass rounded-xl">
+                        <summary class="p-6 cursor-pointer text-sm font-medium text-gray-400 hover:text-gray-200 select-none">Raw Features (Technical Details)</summary>
+                        <div class="px-6 pb-6">
+                            <pre id="rawFeaturesJson" class="bg-dark-900 rounded-lg p-4 text-xs text-gray-400 overflow-x-auto max-h-96 overflow-y-auto"></pre>
+                        </div>
+                    </details>
+                </section>
+            </div>
+
+            <!-- DASHBOARD PAGE -->
+            <div id="page-dashboard" class="hidden space-y-8 fade-in">
+                <!-- Dashboard toolbar -->
+                <div class="flex items-center justify-between">
+                    <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+                        <svg class="w-5 h-5 text-accent-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                        KPI Dashboard
+                    </h2>
+                    <button onclick="downloadDashboardPDF()" id="btnDownloadDashboard"
+                        class="flex items-center gap-2 bg-accent-blue/20 hover:bg-accent-blue/40 text-accent-blue border border-accent-blue/40 rounded-lg px-4 py-2 text-xs font-semibold transition-all">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        Download PDF
+                    </button>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="glass rounded-xl p-5 text-center">
+                        <p class="text-3xl font-bold text-white" id="kpi-total">0</p>
+                        <p class="text-xs text-gray-500 mt-1">Total Analyzed</p>
+                    </div>
+                    <div class="glass rounded-xl p-5 text-center">
+                        <p class="text-3xl font-bold text-red-400" id="kpi-phishing">0</p>
+                        <p class="text-xs text-gray-500 mt-1">Phishing Detected</p>
+                    </div>
+                    <div class="glass rounded-xl p-5 text-center">
+                        <p class="text-3xl font-bold text-yellow-400" id="kpi-suspicious">0</p>
+                        <p class="text-xs text-gray-500 mt-1">Suspicious</p>
+                    </div>
+                    <div class="glass rounded-xl p-5 text-center">
+                        <p class="text-3xl font-bold text-green-400" id="kpi-legitimate">0</p>
+                        <p class="text-xs text-gray-500 mt-1">Legitimate</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="glass rounded-xl p-6 text-center">
+                        <h3 class="text-sm font-medium text-gray-400 mb-3">Phishing Detection Rate</h3>
+                        <p class="text-5xl font-bold text-red-400" id="kpi-rate">0%</p>
+                    </div>
+                    <div class="glass rounded-xl p-6 text-center">
+                        <h3 class="text-sm font-medium text-gray-400 mb-3">Average Confidence</h3>
+                        <p class="text-5xl font-bold text-accent-blue" id="kpi-confidence">0%</p>
+                    </div>
+                </div>
+                <div class="glass rounded-xl p-6">
+                    <h3 class="text-sm font-medium text-gray-400 mb-5">Average Threat Indicator Scores</h3>
+                    <div class="space-y-3" id="dashboardBreakdown">
+                        <p class="text-gray-600 text-sm">No data yet. Analyze some emails first.</p>
+                    </div>
+                </div>
+                <div class="glass rounded-xl p-6">
+                    <h3 class="text-sm font-medium text-gray-400 mb-4">Recent Analyses</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead><tr class="text-gray-500 text-xs uppercase">
+                                <th class="text-left py-2 px-3">Time</th>
+                                <th class="text-left py-2 px-3">Subject</th>
+                                <th class="text-left py-2 px-3">Verdict</th>
+                                <th class="text-left py-2 px-3">Confidence</th>
+                                <th class="text-left py-2 px-3">Action</th>
+                            </tr></thead>
+                            <tbody id="recentTable">
+                                <tr><td colspan="5" class="text-gray-600 text-center py-6">No analyses yet</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== HISTORY PAGE ==================== -->
+            <div id="page-history" class="hidden space-y-6 fade-in">
+                <div class="glass rounded-xl p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-white flex items-center gap-2">
+                            <svg class="w-5 h-5 text-accent-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            Scan History Log
+                        </h3>
+                        <div class="flex items-center gap-3">
+                            <select id="historyFilter" onchange="loadHistory()" class="bg-dark-900 text-gray-300 text-xs rounded-lg px-3 py-1.5 border border-white/10">
+                                <option value="all">All Verdicts</option>
+                                <option value="phishing">Phishing Only</option>
+                                <option value="suspicious">Suspicious Only</option>
+                                <option value="legitimate">Legitimate Only</option>
+                            </select>
+                            <span class="text-xs text-gray-500" id="historyCount">0 records</span>
+                            <button onclick="exportHistoryCSV()" id="btnExportCSV"
+                                class="flex items-center gap-1.5 bg-green-500/20 hover:bg-green-500/40 text-green-400 border border-green-500/40 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all">
+                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+                                Export CSV
+                            </button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead><tr class="text-gray-500 text-xs uppercase border-b border-white/10">
+                                <th class="text-left py-2 px-3">ID</th>
+                                <th class="text-left py-2 px-3">Date &amp; Time</th>
+                                <th class="text-left py-2 px-3">Type</th>
+                                <th class="text-left py-2 px-3">Subject</th>
+                                <th class="text-left py-2 px-3">Verdict</th>
+                                <th class="text-left py-2 px-3">Confidence</th>
+                                <th class="text-left py-2 px-3">Action</th>
+                                <th class="text-left py-2 px-3"></th>
+                            </tr></thead>
+                            <tbody id="historyTable">
+                                <tr><td colspan="8" class="text-gray-600 text-center py-8">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="flex justify-between items-center mt-4" id="historyPagination">
+                        <button onclick="historyPrev()" id="historyPrevBtn" class="text-xs text-gray-400 hover:text-white disabled:opacity-30" disabled>&larr; Previous</button>
+                        <span class="text-xs text-gray-500" id="historyPageInfo">Page 1</span>
+                        <button onclick="historyNext()" id="historyNextBtn" class="text-xs text-gray-400 hover:text-white disabled:opacity-30">&rarr; Next</button>
+                    </div>
+                </div>
+
+                <!-- Scan detail modal (shown inline) -->
+                <div id="historyDetail" class="hidden glass rounded-xl p-6 border-l-4 border-accent-blue">
+                    <div class="flex items-center justify-between mb-4">
+                        <h4 class="text-md font-semibold text-white">Scan Detail — <span id="detailId"></span></h4>
+                        <button onclick="document.getElementById('historyDetail').classList.add('hidden')" class="text-gray-500 hover:text-white text-sm">&times; Close</button>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <p class="text-xs text-gray-500 mb-1">Subject</p>
+                            <p class="text-sm text-gray-200" id="detailSubject">—</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500 mb-1">Body Preview</p>
+                            <p class="text-xs text-gray-400 max-h-20 overflow-y-auto" id="detailBody">—</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                        <div class="bg-dark-900 rounded-lg p-3 text-center">
+                            <p class="text-xs text-gray-500">Verdict</p>
+                            <p class="text-sm font-bold" id="detailVerdict">—</p>
+                        </div>
+                        <div class="bg-dark-900 rounded-lg p-3 text-center">
+                            <p class="text-xs text-gray-500">Confidence</p>
+                            <p class="text-sm font-bold text-accent-blue" id="detailConfidence">—</p>
+                        </div>
+                        <div class="bg-dark-900 rounded-lg p-3 text-center">
+                            <p class="text-xs text-gray-500">Input Type</p>
+                            <p class="text-sm font-bold text-gray-300" id="detailInputType">—</p>
+                        </div>
+                        <div class="bg-dark-900 rounded-lg p-3 text-center">
+                            <p class="text-xs text-gray-500">Analysis Time</p>
+                            <p class="text-sm font-bold text-gray-300" id="detailTime">—</p>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <p class="text-xs text-gray-500 mb-1">Explanation</p>
+                        <p class="text-sm text-gray-300" id="detailExplanation">—</p>
+                    </div>
+                    <div class="mb-4">
+                        <p class="text-xs text-gray-500 mb-1">Education Note</p>
+                        <p class="text-sm text-gray-400" id="detailEducation">—</p>
+                    </div>
+                    <details class="text-xs">
+                        <summary class="text-gray-500 cursor-pointer hover:text-gray-300">Raw Features (JSON)</summary>
+                        <pre class="bg-dark-900 rounded-lg p-4 mt-2 text-gray-400 overflow-x-auto max-h-60" id="detailRaw"></pre>
+                    </details>
+                </div>
+            </div>
+
+            <!-- ==================== ABOUT PAGE ==================== -->
+            <div id="page-about" class="hidden space-y-8 fade-in">
+
+                <!-- Hero -->
+                <div class="glass rounded-xl p-8 text-center border-t-4 border-accent-blue">
+                    <div class="flex justify-center mb-4">
+                        <svg class="w-16 h-16 text-accent-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                    </div>
+                    <h2 class="text-2xl font-bold text-white mb-2">Agentic AI Phishing Detector</h2>
+                    <p class="text-gray-400 text-sm max-w-2xl mx-auto">
+                        A dual-engine, agentic AI system for automated phishing detection and prevention,
+                        built on the MCO (Monitoring, Classification, Optimization) architecture.
+                    </p>
+                    <div class="flex justify-center gap-3 mt-4">
+                        <span class="badge bg-accent-blue/20 text-accent-blue border border-accent-blue/30 text-xs">DistilBERT NLP</span>
+                        <span class="badge bg-purple-500/20 text-purple-400 border border-purple-500/30 text-xs">Random Forest</span>
+                        <span class="badge bg-accent-green/20 text-accent-green border border-accent-green/30 text-xs">Agentic AI</span>
+                        <span class="badge bg-accent-yellow/20 text-accent-yellow border border-accent-yellow/30 text-xs">Explainable</span>
+                    </div>
+                </div>
+
+                <!-- Research Background -->
+                <div class="glass rounded-xl p-6">
+                    <h3 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-accent-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                        Research Background
+                    </h3>
+                    <p class="text-gray-300 text-sm leading-relaxed mb-4">
+                        This system is based on the research paper <strong class="text-white">"Agentic AI for Phishing Detection and Prevention"</strong>
+                        by Loo, Galindo, Romero et al. from the <strong class="text-accent-blue">Universidad Tecnol&oacute;gica de Honduras (UTH), 2025</strong>.
+                    </p>
+                    <p class="text-gray-300 text-sm leading-relaxed mb-4">
+                        The paper proposes a novel approach to phishing detection that moves beyond traditional rule-based systems (like EBIDS)
+                        by introducing an <strong class="text-white">agentic AI architecture</strong> capable of autonomous monitoring, intelligent classification,
+                        and continuous self-optimization. The system was validated on a dataset of <strong class="text-white">82,500 emails</strong> from the Enron, Ling, and SpamAssassin corpuses.
+                    </p>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+                        <div class="bg-dark-900 rounded-lg p-3 text-center">
+                            <p class="text-xl font-bold text-accent-green">92.5%</p>
+                            <p class="text-xs text-gray-500">Accuracy</p>
+                        </div>
+                        <div class="bg-dark-900 rounded-lg p-3 text-center">
+                            <p class="text-xl font-bold text-accent-blue">6.25%</p>
+                            <p class="text-xs text-gray-500">False Negative Rate</p>
+                        </div>
+                        <div class="bg-dark-900 rounded-lg p-3 text-center">
+                            <p class="text-xl font-bold text-accent-yellow">1.25%</p>
+                            <p class="text-xs text-gray-500">False Positive Rate</p>
+                        </div>
+                        <div class="bg-dark-900 rounded-lg p-3 text-center">
+                            <p class="text-xl font-bold text-purple-400">82.5K</p>
+                            <p class="text-xs text-gray-500">Emails Tested</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MCO Architecture Diagram -->
+                <div class="glass rounded-xl p-6">
+                    <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-accent-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+                        MCO Architecture
+                    </h3>
+                    <p class="text-gray-400 text-sm mb-5">The system follows a three-phase agentic loop: Monitoring, Classification, and Optimization.</p>
+
+                    <!-- Architecture SVG Diagram -->
+                    <div class="bg-dark-900 rounded-xl p-6 overflow-x-auto">
+                        <svg viewBox="0 0 800 420" class="w-full max-w-3xl mx-auto" style="min-width: 600px;">
+                            <!-- Input -->
+                            <rect x="20" y="170" width="120" height="80" rx="12" fill="#252545" stroke="#3742fa" stroke-width="2"/>
+                            <text x="80" y="200" text-anchor="middle" fill="#fff" font-size="12" font-weight="bold">Email Input</text>
+                            <text x="80" y="218" text-anchor="middle" fill="#888" font-size="9">.eml / Text / OCR</text>
+
+                            <!-- Arrow to engines -->
+                            <line x1="140" y1="210" x2="190" y2="160" stroke="#3742fa" stroke-width="2" marker-end="url(#arrowBlue)"/>
+                            <line x1="140" y1="210" x2="190" y2="260" stroke="#3742fa" stroke-width="2" marker-end="url(#arrowBlue)"/>
+
+                            <!-- Engine A -->
+                            <rect x="190" y="100" width="180" height="110" rx="12" fill="#252545" stroke="#00d26a" stroke-width="2"/>
+                            <text x="280" y="128" text-anchor="middle" fill="#00d26a" font-size="11" font-weight="bold">ENGINE A</text>
+                            <text x="280" y="146" text-anchor="middle" fill="#fff" font-size="11">Semantic Understanding</text>
+                            <text x="280" y="164" text-anchor="middle" fill="#888" font-size="9">DistilBERT Transformer</text>
+                            <text x="280" y="178" text-anchor="middle" fill="#888" font-size="9">768-dim [CLS] embedding</text>
+                            <text x="280" y="192" text-anchor="middle" fill="#888" font-size="9">+ Rule-based scoring</text>
+
+                            <!-- Engine B -->
+                            <rect x="190" y="230" width="180" height="110" rx="12" fill="#252545" stroke="#ffa502" stroke-width="2"/>
+                            <text x="280" y="258" text-anchor="middle" fill="#ffa502" font-size="11" font-weight="bold">ENGINE B</text>
+                            <text x="280" y="276" text-anchor="middle" fill="#fff" font-size="11">Structural Analysis</text>
+                            <text x="280" y="294" text-anchor="middle" fill="#888" font-size="9">URL Analysis + Typosquatting</text>
+                            <text x="280" y="308" text-anchor="middle" fill="#888" font-size="9">SPF/DKIM/DMARC Headers</text>
+                            <text x="280" y="322" text-anchor="middle" fill="#888" font-size="9">HTML Hidden Elements</text>
+
+                            <!-- Arrows to fusion -->
+                            <line x1="370" y1="155" x2="430" y2="200" stroke="#00d26a" stroke-width="2" marker-end="url(#arrowGreen)"/>
+                            <line x1="370" y1="285" x2="430" y2="230" stroke="#ffa502" stroke-width="2" marker-end="url(#arrowYellow)"/>
+
+                            <!-- Fusion -->
+                            <rect x="430" y="175" width="140" height="75" rx="12" fill="#252545" stroke="#9b59b6" stroke-width="2"/>
+                            <text x="500" y="203" text-anchor="middle" fill="#9b59b6" font-size="11" font-weight="bold">FEATURE FUSION</text>
+                            <text x="500" y="221" text-anchor="middle" fill="#fff" font-size="10">768-d + 50 features</text>
+                            <text x="500" y="237" text-anchor="middle" fill="#888" font-size="9">Random Forest (100 trees)</text>
+
+                            <!-- Arrow to output -->
+                            <line x1="570" y1="212" x2="620" y2="212" stroke="#9b59b6" stroke-width="2" marker-end="url(#arrowPurple)"/>
+
+                            <!-- Output -->
+                            <rect x="620" y="155" width="160" height="120" rx="12" fill="#252545" stroke="#ff4757" stroke-width="2"/>
+                            <text x="700" y="180" text-anchor="middle" fill="#ff4757" font-size="11" font-weight="bold">CLASSIFICATION</text>
+                            <text x="700" y="200" text-anchor="middle" fill="#fff" font-size="10">Phishing / Legitimate</text>
+                            <text x="700" y="218" text-anchor="middle" fill="#888" font-size="9">Confidence Score</text>
+                            <text x="700" y="236" text-anchor="middle" fill="#888" font-size="9">Explainability Report</text>
+                            <text x="700" y="254" text-anchor="middle" fill="#888" font-size="9">Action: Quarantine/Alert/Pass</text>
+
+                            <!-- MCO Labels at top -->
+                            <rect x="80" y="20" width="100" height="30" rx="6" fill="rgba(55,66,250,0.2)" stroke="#3742fa" stroke-width="1"/>
+                            <text x="130" y="40" text-anchor="middle" fill="#3742fa" font-size="11" font-weight="bold">MONITORING</text>
+
+                            <rect x="330" y="20" width="130" height="30" rx="6" fill="rgba(155,89,182,0.2)" stroke="#9b59b6" stroke-width="1"/>
+                            <text x="395" y="40" text-anchor="middle" fill="#9b59b6" font-size="11" font-weight="bold">CLASSIFICATION</text>
+
+                            <rect x="600" y="20" width="130" height="30" rx="6" fill="rgba(0,210,106,0.2)" stroke="#00d26a" stroke-width="1"/>
+                            <text x="665" y="40" text-anchor="middle" fill="#00d26a" font-size="11" font-weight="bold">OPTIMIZATION</text>
+
+                            <!-- Dashed lines from MCO labels -->
+                            <line x1="130" y1="50" x2="130" y2="90" stroke="#3742fa" stroke-width="1" stroke-dasharray="4"/>
+                            <line x1="395" y1="50" x2="395" y2="90" stroke="#9b59b6" stroke-width="1" stroke-dasharray="4"/>
+                            <line x1="665" y1="50" x2="665" y2="90" stroke="#00d26a" stroke-width="1" stroke-dasharray="4"/>
+
+                            <!-- Optimization feedback loop -->
+                            <path d="M700 275 L700 380 L80 380 L80 250" fill="none" stroke="#00d26a" stroke-width="1.5" stroke-dasharray="6" marker-end="url(#arrowGreen)"/>
+                            <text x="390" y="400" text-anchor="middle" fill="#00d26a" font-size="9">Feedback Loop — Retraining with labeled samples</text>
+
+                            <!-- Arrow markers -->
+                            <defs>
+                                <marker id="arrowBlue" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#3742fa"/></marker>
+                                <marker id="arrowGreen" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#00d26a"/></marker>
+                                <marker id="arrowYellow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#ffa502"/></marker>
+                                <marker id="arrowPurple" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#9b59b6"/></marker>
+                            </defs>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Dual Engine Detail -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Engine A -->
+                    <div class="glass rounded-xl p-6 border-t-2 border-accent-green">
+                        <h4 class="text-md font-semibold text-accent-green mb-3">Engine A: Semantic Understanding</h4>
+                        <p class="text-gray-300 text-sm leading-relaxed mb-3">
+                            Uses a DistilBERT transformer model to extract deep linguistic features from email text.
+                            The model produces a 768-dimensional embedding from the [CLS] token that captures semantic meaning.
+                        </p>
+                        <ul class="text-sm text-gray-400 space-y-1.5">
+                            <li class="flex items-start gap-2"><span class="text-accent-green mt-0.5">&#9654;</span> Urgency language detection (e.g., "account suspended", "act immediately")</li>
+                            <li class="flex items-start gap-2"><span class="text-accent-green mt-0.5">&#9654;</span> Authority impersonation scoring (CEO, PayPal, Microsoft, etc.)</li>
+                            <li class="flex items-start gap-2"><span class="text-accent-green mt-0.5">&#9654;</span> Pressure tactics identification (deadlines, threats)</li>
+                            <li class="flex items-start gap-2"><span class="text-accent-green mt-0.5">&#9654;</span> Credential harvesting phrase detection</li>
+                            <li class="flex items-start gap-2"><span class="text-accent-green mt-0.5">&#9654;</span> Generic greeting patterns (Dear Customer, Dear User)</li>
+                            <li class="flex items-start gap-2"><span class="text-accent-green mt-0.5">&#9654;</span> Grammatical anomaly analysis</li>
+                        </ul>
+                    </div>
+
+                    <!-- Engine B -->
+                    <div class="glass rounded-xl p-6 border-t-2 border-accent-yellow">
+                        <h4 class="text-md font-semibold text-accent-yellow mb-3">Engine B: Structural Analysis</h4>
+                        <p class="text-gray-300 text-sm leading-relaxed mb-3">
+                            Analyzes the technical structure of emails including URLs, headers, and HTML content
+                            to identify structural indicators of phishing attacks.
+                        </p>
+                        <ul class="text-sm text-gray-400 space-y-1.5">
+                            <li class="flex items-start gap-2"><span class="text-accent-yellow mt-0.5">&#9654;</span> URL analysis: IP-based, shorteners, suspicious TLDs</li>
+                            <li class="flex items-start gap-2"><span class="text-accent-yellow mt-0.5">&#9654;</span> Typosquatting detection (Levenshtein distance vs 45+ brands)</li>
+                            <li class="flex items-start gap-2"><span class="text-accent-yellow mt-0.5">&#9654;</span> SPF / DKIM / DMARC authentication validation</li>
+                            <li class="flex items-start gap-2"><span class="text-accent-yellow mt-0.5">&#9654;</span> Sender spoofing (display name vs domain mismatch)</li>
+                            <li class="flex items-start gap-2"><span class="text-accent-yellow mt-0.5">&#9654;</span> Hidden HTML elements and tracking pixels</li>
+                            <li class="flex items-start gap-2"><span class="text-accent-yellow mt-0.5">&#9654;</span> Embedded forms with external action URLs</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Classification Pipeline -->
+                <div class="glass rounded-xl p-6">
+                    <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-accent-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                        Classification Pipeline
+                    </h3>
+
+                    <!-- Pipeline steps -->
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
+                        <div class="bg-dark-900 rounded-lg p-4 text-center">
+                            <div class="w-10 h-10 rounded-full bg-accent-blue/20 flex items-center justify-center mx-auto mb-2">
+                                <span class="text-accent-blue font-bold text-sm">1</span>
+                            </div>
+                            <p class="text-xs font-semibold text-white">Ingest</p>
+                            <p class="text-xs text-gray-500 mt-1">Parse .eml, text, or OCR screenshot</p>
+                        </div>
+                        <div class="bg-dark-900 rounded-lg p-4 text-center">
+                            <div class="w-10 h-10 rounded-full bg-accent-green/20 flex items-center justify-center mx-auto mb-2">
+                                <span class="text-accent-green font-bold text-sm">2</span>
+                            </div>
+                            <p class="text-xs font-semibold text-white">NLP Analysis</p>
+                            <p class="text-xs text-gray-500 mt-1">DistilBERT embedding + rule-based scoring</p>
+                        </div>
+                        <div class="bg-dark-900 rounded-lg p-4 text-center">
+                            <div class="w-10 h-10 rounded-full bg-accent-yellow/20 flex items-center justify-center mx-auto mb-2">
+                                <span class="text-accent-yellow font-bold text-sm">3</span>
+                            </div>
+                            <p class="text-xs font-semibold text-white">Structural</p>
+                            <p class="text-xs text-gray-500 mt-1">URL, header, HTML analysis (~50 features)</p>
+                        </div>
+                        <div class="bg-dark-900 rounded-lg p-4 text-center">
+                            <div class="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center mx-auto mb-2">
+                                <span class="text-purple-400 font-bold text-sm">4</span>
+                            </div>
+                            <p class="text-xs font-semibold text-white">Fusion</p>
+                            <p class="text-xs text-gray-500 mt-1">Random Forest on 818-dim vector</p>
+                        </div>
+                        <div class="bg-dark-900 rounded-lg p-4 text-center">
+                            <div class="w-10 h-10 rounded-full bg-accent-red/20 flex items-center justify-center mx-auto mb-2">
+                                <span class="text-accent-red font-bold text-sm">5</span>
+                            </div>
+                            <p class="text-xs font-semibold text-white">Decision</p>
+                            <p class="text-xs text-gray-500 mt-1">Verdict + explainability + action mapping</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Technology Stack -->
+                <div class="glass rounded-xl p-6">
+                    <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-accent-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+                        Technology Stack
+                    </h3>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        <div class="bg-dark-900 rounded-lg p-3">
+                            <p class="text-xs text-accent-blue font-semibold mb-1">Backend</p>
+                            <p class="text-sm text-gray-300">Python 3.10+ / FastAPI</p>
+                        </div>
+                        <div class="bg-dark-900 rounded-lg p-3">
+                            <p class="text-xs text-accent-green font-semibold mb-1">NLP Model</p>
+                            <p class="text-sm text-gray-300">DistilBERT (HuggingFace)</p>
+                        </div>
+                        <div class="bg-dark-900 rounded-lg p-3">
+                            <p class="text-xs text-purple-400 font-semibold mb-1">Classifier</p>
+                            <p class="text-sm text-gray-300">Random Forest (scikit-learn)</p>
+                        </div>
+                        <div class="bg-dark-900 rounded-lg p-3">
+                            <p class="text-xs text-accent-yellow font-semibold mb-1">Deep Learning</p>
+                            <p class="text-sm text-gray-300">PyTorch</p>
+                        </div>
+                        <div class="bg-dark-900 rounded-lg p-3">
+                            <p class="text-xs text-accent-red font-semibold mb-1">OCR</p>
+                            <p class="text-sm text-gray-300">Tesseract + Pillow</p>
+                        </div>
+                        <div class="bg-dark-900 rounded-lg p-3">
+                            <p class="text-xs text-cyan-400 font-semibold mb-1">Database</p>
+                            <p class="text-sm text-gray-300">SQLite (persistent logs)</p>
+                        </div>
+                        <div class="bg-dark-900 rounded-lg p-3">
+                            <p class="text-xs text-pink-400 font-semibold mb-1">Frontend</p>
+                            <p class="text-sm text-gray-300">Tailwind CSS / Vanilla JS</p>
+                        </div>
+                        <div class="bg-dark-900 rounded-lg p-3">
+                            <p class="text-xs text-orange-400 font-semibold mb-1">URL Analysis</p>
+                            <p class="text-sm text-gray-300">tldextract / Levenshtein</p>
+                        </div>
+                        <div class="bg-dark-900 rounded-lg p-3">
+                            <p class="text-xs text-teal-400 font-semibold mb-1">AI Chat</p>
+                            <p class="text-sm text-gray-300">Claude API (Anthropic)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Threat Indicators Explained -->
+                <div class="glass rounded-xl p-6">
+                    <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-accent-red" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+                        Top Phishing Triggers (from paper)
+                    </h3>
+                    <p class="text-gray-400 text-sm mb-4">Distribution of primary indicators that triggered phishing classification in the original study:</p>
+                    <div class="space-y-3">
+                        <div>
+                            <div class="flex justify-between mb-1"><span class="text-sm text-gray-300">Suspicious URLs</span><span class="text-sm font-mono text-red-400">43%</span></div>
+                            <div class="w-full bg-dark-900 rounded-full h-3"><div class="bg-red-500 h-3 rounded-full" style="width:43%"></div></div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between mb-1"><span class="text-sm text-gray-300">Urgency Language</span><span class="text-sm font-mono text-orange-400">32%</span></div>
+                            <div class="w-full bg-dark-900 rounded-full h-3"><div class="bg-orange-500 h-3 rounded-full" style="width:32%"></div></div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between mb-1"><span class="text-sm text-gray-300">Grammatical Anomalies</span><span class="text-sm font-mono text-purple-400">15%</span></div>
+                            <div class="w-full bg-dark-900 rounded-full h-3"><div class="bg-purple-500 h-3 rounded-full" style="width:15%"></div></div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between mb-1"><span class="text-sm text-gray-300">Other Indicators</span><span class="text-sm font-mono text-gray-400">10%</span></div>
+                            <div class="w-full bg-dark-900 rounded-full h-3"><div class="bg-gray-500 h-3 rounded-full" style="width:10%"></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Mapping -->
+                <div class="glass rounded-xl p-6">
+                    <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-accent-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        Agentic Action Mapping
+                    </h3>
+                    <p class="text-gray-400 text-sm mb-4">The system autonomously maps classification results to recommended actions:</p>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-red-900/20 border border-red-500/20 rounded-lg p-4 text-center">
+                            <div class="text-3xl mb-2">🛑</div>
+                            <p class="text-sm font-semibold text-red-400">Quarantine</p>
+                            <p class="text-xs text-gray-400 mt-1">Confidence &gt; 85%</p>
+                            <p class="text-xs text-gray-500 mt-1">Isolate immediately. High-confidence phishing.</p>
+                        </div>
+                        <div class="bg-yellow-900/20 border border-yellow-500/20 rounded-lg p-4 text-center">
+                            <div class="text-3xl mb-2">⚠️</div>
+                            <p class="text-sm font-semibold text-yellow-400">Alert</p>
+                            <p class="text-xs text-gray-400 mt-1">Confidence 50%&ndash;85%</p>
+                            <p class="text-xs text-gray-500 mt-1">Flag for manual review by security team.</p>
+                        </div>
+                        <div class="bg-green-900/20 border border-green-500/20 rounded-lg p-4 text-center">
+                            <div class="text-3xl mb-2">✅</div>
+                            <p class="text-sm font-semibold text-green-400">Pass</p>
+                            <p class="text-xs text-gray-400 mt-1">Confidence &lt; 50%</p>
+                            <p class="text-xs text-gray-500 mt-1">Deliver normally. No significant indicators.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Data Flow Diagram -->
+                <div class="glass rounded-xl p-6">
+                    <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/></svg>
+                        Data Flow &amp; Storage Architecture
+                    </h3>
+                    <p class="text-gray-400 text-sm mb-5">How data flows through the system from input to persistent storage and retraining.</p>
+                    <div class="bg-dark-900 rounded-xl p-6 overflow-x-auto">
+                        <svg viewBox="0 0 800 320" class="w-full max-w-3xl mx-auto" style="min-width: 600px;">
+                            <!-- Input sources -->
+                            <rect x="10" y="30" width="100" height="50" rx="8" fill="#252545" stroke="#3742fa" stroke-width="1.5"/>
+                            <text x="60" y="55" text-anchor="middle" fill="#3742fa" font-size="10" font-weight="bold">.eml Upload</text>
+
+                            <rect x="10" y="100" width="100" height="50" rx="8" fill="#252545" stroke="#00d26a" stroke-width="1.5"/>
+                            <text x="60" y="125" text-anchor="middle" fill="#00d26a" font-size="10" font-weight="bold">Raw Text</text>
+
+                            <rect x="10" y="170" width="100" height="50" rx="8" fill="#252545" stroke="#ffa502" stroke-width="1.5"/>
+                            <text x="60" y="190" text-anchor="middle" fill="#ffa502" font-size="10" font-weight="bold">Screenshot</text>
+                            <text x="60" y="205" text-anchor="middle" fill="#888" font-size="8">Tesseract OCR</text>
+
+                            <!-- Arrows to parsers -->
+                            <line x1="110" y1="55" x2="170" y2="120" stroke="#3742fa" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
+                            <line x1="110" y1="125" x2="170" y2="125" stroke="#00d26a" stroke-width="1.5" marker-end="url(#arrowGreen)"/>
+                            <line x1="110" y1="195" x2="170" y2="130" stroke="#ffa502" stroke-width="1.5" marker-end="url(#arrowYellow)"/>
+
+                            <!-- Parser box -->
+                            <rect x="170" y="95" width="100" height="60" rx="8" fill="#252545" stroke="#888" stroke-width="1.5"/>
+                            <text x="220" y="118" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold">Parsers</text>
+                            <text x="220" y="135" text-anchor="middle" fill="#888" font-size="8">Normalize input</text>
+
+                            <!-- Arrow to dual engine -->
+                            <line x1="270" y1="125" x2="310" y2="80" stroke="#888" stroke-width="1.5" marker-end="url(#arrowGray)"/>
+                            <line x1="270" y1="125" x2="310" y2="170" stroke="#888" stroke-width="1.5" marker-end="url(#arrowGray)"/>
+
+                            <!-- Engine A -->
+                            <rect x="310" y="50" width="120" height="55" rx="8" fill="#252545" stroke="#00d26a" stroke-width="1.5"/>
+                            <text x="370" y="73" text-anchor="middle" fill="#00d26a" font-size="9" font-weight="bold">Semantic Engine</text>
+                            <text x="370" y="90" text-anchor="middle" fill="#888" font-size="8">NLP + Patterns</text>
+
+                            <!-- Engine B -->
+                            <rect x="310" y="140" width="120" height="55" rx="8" fill="#252545" stroke="#ffa502" stroke-width="1.5"/>
+                            <text x="370" y="163" text-anchor="middle" fill="#ffa502" font-size="9" font-weight="bold">Structural Engine</text>
+                            <text x="370" y="180" text-anchor="middle" fill="#888" font-size="8">URLs + Headers</text>
+
+                            <!-- Arrows to classifier -->
+                            <line x1="430" y1="78" x2="470" y2="115" stroke="#00d26a" stroke-width="1.5" marker-end="url(#arrowGreen)"/>
+                            <line x1="430" y1="168" x2="470" y2="130" stroke="#ffa502" stroke-width="1.5" marker-end="url(#arrowYellow)"/>
+
+                            <!-- Classifier -->
+                            <rect x="470" y="95" width="110" height="60" rx="8" fill="#252545" stroke="#9b59b6" stroke-width="1.5"/>
+                            <text x="525" y="118" text-anchor="middle" fill="#9b59b6" font-size="9" font-weight="bold">Classifier</text>
+                            <text x="525" y="135" text-anchor="middle" fill="#888" font-size="8">RF / Heuristic</text>
+
+                            <!-- Arrow to result -->
+                            <line x1="580" y1="125" x2="620" y2="80" stroke="#9b59b6" stroke-width="1.5" marker-end="url(#arrowPurple)"/>
+                            <line x1="580" y1="125" x2="620" y2="170" stroke="#9b59b6" stroke-width="1.5" marker-end="url(#arrowPurple)"/>
+
+                            <!-- Result -->
+                            <rect x="620" y="50" width="110" height="55" rx="8" fill="#252545" stroke="#ff4757" stroke-width="1.5"/>
+                            <text x="675" y="73" text-anchor="middle" fill="#ff4757" font-size="9" font-weight="bold">Result + Action</text>
+                            <text x="675" y="90" text-anchor="middle" fill="#888" font-size="8">Explainability</text>
+
+                            <!-- Database -->
+                            <rect x="620" y="145" width="110" height="55" rx="8" fill="#252545" stroke="#00bcd4" stroke-width="1.5"/>
+                            <text x="675" y="168" text-anchor="middle" fill="#00bcd4" font-size="9" font-weight="bold">SQLite DB</text>
+                            <text x="675" y="185" text-anchor="middle" fill="#888" font-size="8">Scan History</text>
+
+                            <!-- Storage connections -->
+                            <line x1="675" y1="105" x2="675" y2="145" stroke="#00bcd4" stroke-width="1" stroke-dasharray="4"/>
+
+                            <!-- Retraining loop -->
+                            <path d="M675 200 L675 270 L370 270 L370 195" fill="none" stroke="#00d26a" stroke-width="1.5" stroke-dasharray="6" marker-end="url(#arrowGreen)"/>
+                            <rect x="440" y="255" width="120" height="28" rx="6" fill="rgba(0,210,106,0.1)" stroke="#00d26a" stroke-width="1"/>
+                            <text x="500" y="274" text-anchor="middle" fill="#00d26a" font-size="8" font-weight="bold">Retraining Pipeline</text>
+
+                            <!-- Claude Chat -->
+                            <rect x="740" y="50" width="55" height="55" rx="8" fill="#252545" stroke="#e056a0" stroke-width="1.5"/>
+                            <text x="767" y="73" text-anchor="middle" fill="#e056a0" font-size="8" font-weight="bold">Claude</text>
+                            <text x="767" y="88" text-anchor="middle" fill="#888" font-size="7">Advisor</text>
+                            <line x1="730" y1="78" x2="740" y2="78" stroke="#e056a0" stroke-width="1" stroke-dasharray="3"/>
+
+                            <!-- Arrow markers -->
+                            <defs>
+                                <marker id="arrowGray" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#888"/></marker>
+                            </defs>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Adversarial Attack Taxonomy -->
+                <div class="glass rounded-xl p-6">
+                    <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                        Adversarial Attack Taxonomy
+                    </h3>
+                    <p class="text-gray-400 text-sm mb-4">Categories of adversarial attacks the system is designed to detect and resist:</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="bg-dark-900 rounded-lg p-4 border-l-2 border-red-500">
+                            <p class="text-sm font-semibold text-red-400 mb-2">Semantic Evasion</p>
+                            <ul class="text-xs text-gray-400 space-y-1">
+                                <li>&bull; Paraphrasing urgent language to bypass NLP</li>
+                                <li>&bull; Using synonyms for credential requests</li>
+                                <li>&bull; Embedding text in images (OCR evasion)</li>
+                                <li>&bull; Unicode homograph substitution</li>
+                            </ul>
+                        </div>
+                        <div class="bg-dark-900 rounded-lg p-4 border-l-2 border-orange-500">
+                            <p class="text-sm font-semibold text-orange-400 mb-2">Structural Obfuscation</p>
+                            <ul class="text-xs text-gray-400 space-y-1">
+                                <li>&bull; URL shorteners and redirects</li>
+                                <li>&bull; IP-based links and hex encoding</li>
+                                <li>&bull; Typosquatting (paypa1.com, micros0ft.com)</li>
+                                <li>&bull; Header spoofing and forged SPF/DKIM</li>
+                            </ul>
+                        </div>
+                        <div class="bg-dark-900 rounded-lg p-4 border-l-2 border-purple-500">
+                            <p class="text-sm font-semibold text-purple-400 mb-2">Content Manipulation</p>
+                            <ul class="text-xs text-gray-400 space-y-1">
+                                <li>&bull; HTML-based hidden content injection</li>
+                                <li>&bull; Base64-encoded payloads</li>
+                                <li>&bull; CSS-hidden tracking pixels</li>
+                                <li>&bull; Obfuscated JavaScript execution</li>
+                            </ul>
+                        </div>
+                        <div class="bg-dark-900 rounded-lg p-4 border-l-2 border-cyan-500">
+                            <p class="text-sm font-semibold text-cyan-400 mb-2">Social Engineering</p>
+                            <ul class="text-xs text-gray-400 space-y-1">
+                                <li>&bull; CEO / executive impersonation (BEC)</li>
+                                <li>&bull; Brand spoofing with lookalike domains</li>
+                                <li>&bull; Reply-to address mismatch</li>
+                                <li>&bull; Pretexting with legitimate-looking invoices</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Phase 2 Preview -->
+                <div class="glass rounded-xl p-6 border-l-4 border-accent-blue">
+                    <h3 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-accent-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                        Phase 2: Adversarial Evaluation
+                    </h3>
+                    <p class="text-gray-300 text-sm leading-relaxed mb-3">
+                        The follow-up research paper will extend this system with adversarial testing to evaluate robustness
+                        against evasion attacks. This includes:
+                    </p>
+                    <ul class="text-sm text-gray-400 space-y-1.5">
+                        <li class="flex items-start gap-2"><span class="text-accent-blue mt-0.5">&#9654;</span> <strong class="text-gray-300">Semantic Paraphrasing</strong> — T5/GPT-based rephrasing of phishing content while preserving malicious intent</li>
+                        <li class="flex items-start gap-2"><span class="text-accent-blue mt-0.5">&#9654;</span> <strong class="text-gray-300">Structural Obfuscation</strong> — URL encoding, homograph attacks, header spoofing techniques</li>
+                        <li class="flex items-start gap-2"><span class="text-accent-blue mt-0.5">&#9654;</span> <strong class="text-gray-300">Adversarial Retraining</strong> — Measuring and improving robustness through adversarial sample augmentation</li>
+                        <li class="flex items-start gap-2"><span class="text-accent-blue mt-0.5">&#9654;</span> <strong class="text-gray-300">Metrics</strong> — Accuracy, Precision, Recall, F1, FNR, FPR, Evasion Success Rate, ROC/AUC curves</li>
+                    </ul>
+                </div>
+
+                <!-- Authors -->
+                <div class="glass rounded-xl p-6 text-center">
+                    <p class="text-gray-500 text-xs">
+                        Agentic AI Phishing Detector v1.0 &mdash; Based on research by
+                        <strong class="text-gray-300">Loo, Galindo, Romero et al.</strong> &mdash;
+                        <strong class="text-accent-blue">Universidad Tecnol&oacute;gica de Honduras (UTH), 2025</strong>
+                    </p>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ==================== RIGHT SIDE PANEL: SECURITY ADVISOR ==================== -->
+    <div class="side-panel bg-dark-900/50 flex flex-col">
+        <!-- Panel Header -->
+        <div class="flex items-center justify-between px-4 py-3 border-b border-white/10">
+            <div class="flex items-center gap-2">
+                <svg class="w-5 h-5 text-accent-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                <span class="text-sm font-semibold text-white">Security Advisor</span>
+                <span class="badge bg-accent-green/20 text-accent-green border border-accent-green/30">AI</span>
+            </div>
+            <button onclick="toggleChatSettings()" class="text-gray-400 hover:text-white" title="Settings">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            </button>
+        </div>
+
+        <!-- API Key Settings (collapsible) -->
+        <div id="chatSettings" class="hidden px-4 py-3 border-b border-white/10 bg-dark-900/80">
+            <label class="block text-xs text-gray-400 mb-1">Anthropic API Key</label>
+            <input type="password" id="chatApiKey" placeholder="sk-ant-..."
+                   class="w-full bg-dark-900 border border-white/10 rounded px-3 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-accent-blue/50"
+                   onchange="localStorage.setItem('anthropic_api_key', this.value)">
+            <p class="text-xs text-gray-600 mt-1">Stored in your browser only.</p>
+        </div>
+
+        <!-- Messages -->
+        <div class="chat-messages flex-1 p-4 space-y-3" id="chatMessages">
+            <div class="chat-msg-system rounded-lg px-3 py-2 text-sm text-green-300/80">
+                <span class="font-semibold">Security Advisor</span> is ready. I'll automatically provide feedback and educational insights as you analyze emails. You can also ask me anything about phishing and email security.
+            </div>
+            <div class="chat-msg-bot rounded-lg px-3 py-2 text-xs text-gray-400 italic">
+                Set your Anthropic API key in settings (gear icon) to enable AI responses.
+            </div>
+        </div>
+
+        <!-- Input -->
+        <div class="px-3 py-3 border-t border-white/10 flex gap-2">
+            <input type="text" id="chatInput" placeholder="Ask about phishing..."
+                   class="flex-1 bg-dark-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-accent-blue/50"
+                   onkeydown="if(event.key==='Enter')sendChat()">
+            <button onclick="sendChat()" class="bg-accent-blue hover:bg-accent-blue/80 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all">
+                Send
+            </button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    let currentTab = 'eml';
+    let currentPage = 'analyzer';
+    let selectedEmlFile = null;
+    let selectedScreenshot = null;
+    let lastAnalysisResult = null;
+
+    // Load saved API key
+    window.addEventListener('DOMContentLoaded', () => {
+        const saved = localStorage.getItem('anthropic_api_key');
+        if (saved) document.getElementById('chatApiKey').value = saved;
+    });
+
+    // --- Page navigation ---
+    function showPage(page) {
+        currentPage = page;
+        ['analyzer', 'dashboard', 'history', 'about'].forEach(p => {
+            document.getElementById('page-' + p).classList.toggle('hidden', p !== page);
+            document.getElementById('nav-' + p).classList.toggle('active', p === page);
+        });
+        if (page === 'dashboard') {
+            loadDashboard();
+            addSystemMsg('You switched to the Dashboard. Here you can see KPI statistics from all your analyses.');
+        } else if (page === 'history') {
+            loadHistory();
+            addSystemMsg('Viewing Scan History. Click any row to see the full analysis detail, including explanation and raw features.');
+        } else if (page === 'about') {
+            addSystemMsg('Viewing the About page. Here you can learn about the MCO architecture, dual-engine methodology, and the research paper behind this system.');
+        }
+    }
+
+    // --- Tab switching ---
+    function switchTab(tab) {
+        currentTab = tab;
+        ['eml','text','screenshot'].forEach(t => {
+            document.getElementById('panel-' + t).classList.toggle('hidden', t !== tab);
+            document.getElementById('tab-' + t).className = t === tab
+                ? 'tab-active px-6 py-3 text-sm font-medium flex items-center gap-2'
+                : 'tab-inactive px-6 py-3 text-sm font-medium flex items-center gap-2';
+        });
+        const tabNames = { eml: '.eml file upload', text: 'text paste', screenshot: 'screenshot OCR' };
+        addSystemMsg(`Switched to ${tabNames[tab]} mode.`);
+    }
+
+    // --- File handlers ---
+    function handleEmlSelect(e) {
+        selectedEmlFile = e.target.files[0];
+        if (selectedEmlFile) {
+            const el = document.getElementById('emlFileName'); el.textContent = selectedEmlFile.name; el.classList.remove('hidden');
+            addSystemMsg(`File selected: ${selectedEmlFile.name}. Click "Analyze Email" to scan it for phishing indicators.`);
+        }
+    }
+    function handleScreenshotSelect(e) {
+        selectedScreenshot = e.target.files[0];
+        if (selectedScreenshot) {
+            const el = document.getElementById('screenshotFileName'); el.textContent = selectedScreenshot.name; el.classList.remove('hidden');
+            addSystemMsg(`Screenshot loaded: ${selectedScreenshot.name}. I'll extract text via OCR and then analyze it.`);
+        }
+    }
+
+    // Drag and drop
+    ['dropZoneEml', 'dropZoneScreenshot'].forEach(id => {
+        const el = document.getElementById(id); if (!el) return;
+        el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('dragover'); });
+        el.addEventListener('dragleave', () => el.classList.remove('dragover'));
+        el.addEventListener('drop', e => {
+            e.preventDefault(); el.classList.remove('dragover');
+            const file = e.dataTransfer.files[0]; if (!file) return;
+            if (id === 'dropZoneEml') { selectedEmlFile = file; const fn = document.getElementById('emlFileName'); fn.textContent = file.name; fn.classList.remove('hidden'); addSystemMsg(`File dropped: ${file.name}. Ready to analyze.`); }
+            else { selectedScreenshot = file; const fn = document.getElementById('screenshotFileName'); fn.textContent = file.name; fn.classList.remove('hidden'); addSystemMsg(`Screenshot dropped: ${file.name}. Ready for OCR extraction.`); }
+        });
+    });
+
+    // --- Analysis ---
+    async function analyze() {
+        const btn = document.getElementById('analyzeBtn');
+        const loading = document.getElementById('loadingSection');
+        const results = document.getElementById('resultsSection');
+        const status = document.getElementById('statusBadge');
+        let url, body, isFormData = false;
+
+        if (currentTab === 'eml') {
+            if (!selectedEmlFile) return alert('Please select a .eml file');
+            url = '/api/analyze/eml'; body = new FormData(); body.append('file', selectedEmlFile); isFormData = true;
+        } else if (currentTab === 'text') {
+            const subject = document.getElementById('textSubject').value;
+            const bodyText = document.getElementById('textBody').value;
+            if (!subject && !bodyText) return alert('Please enter a subject or body');
+            url = '/api/analyze/text'; body = JSON.stringify({ subject, body: bodyText });
+        } else {
+            if (!selectedScreenshot) return alert('Please select a screenshot');
+            url = '/api/analyze/screenshot'; body = new FormData(); body.append('file', selectedScreenshot); isFormData = true;
+        }
+
+        btn.disabled = true; results.classList.add('hidden'); loading.classList.remove('hidden');
+        status.textContent = 'Analyzing...'; status.className = 'badge bg-accent-yellow/20 text-accent-yellow border border-accent-yellow/30';
+        addSystemMsg('Running analysis... Semantic Engine (NLP patterns) + Structural Engine (URLs, headers, HTML) + Classification.');
+
+        try {
+            const opts = { method: 'POST', body };
+            if (!isFormData) opts.headers = { 'Content-Type': 'application/json' };
+            const res = await fetch(url, opts);
+            if (!res.ok) { const err = await res.json().catch(() => ({ detail: 'Unknown error' })); throw new Error(err.detail || `HTTP ${res.status}`); }
+            const data = await res.json();
+            lastAnalysisResult = data;
+            renderResults(data);
+            status.textContent = 'Complete'; status.className = 'badge bg-green-500/20 text-green-400 border border-green-500/30';
+
+            // Proactive feedback
+            proactiveFeedback(data);
+
+        } catch (err) {
+            alert('Analysis failed: ' + err.message);
+            addSystemMsg('Analysis failed: ' + err.message);
+            status.textContent = 'Error'; status.className = 'badge bg-accent-red/20 text-accent-red border border-accent-red/30';
+        } finally { btn.disabled = false; loading.classList.add('hidden'); }
+    }
+
+    // --- Proactive feedback after analysis ---
+    async function proactiveFeedback(data) {
+        const verdict = data.verdict;
+        const pct = Math.round(data.confidence * 100);
+
+        // Immediate local feedback
+        const verdictColors = { phishing: 'text-red-400', suspicious: 'text-yellow-400', legitimate: 'text-green-400' };
+        const vc = verdictColors[verdict] || 'text-gray-300';
+        addSystemMsg(`Analysis complete: <span class="${vc} font-semibold">${verdict.toUpperCase()}</span> (${pct}% confidence). Action: ${data.recommended_action}.`);
+
+        // Gather notable indicators for context
+        const notable = [];
+        for (const [key, val] of Object.entries(data.threat_indicators || {})) {
+            if (val.score > 0.2) {
+                const label = key.replace(/_/g, ' ');
+                notable.push(`${label}: ${Math.round(val.score * 100)}%`);
+            }
+        }
+        if (notable.length) {
+            addSystemMsg(`Key triggers: ${notable.join(', ')}.`);
+        }
+
+        // AI-powered educational feedback (if API key set)
+        const apiKey = document.getElementById('chatApiKey').value || localStorage.getItem('anthropic_api_key');
+        if (!apiKey) return;
+
+        const typingId = addChatMsg('<span class="chat-spinner"></span> Analyzing findings...', 'bot', true);
+
+        try {
+            const prompt = verdict === 'legitimate'
+                ? `The user just analyzed an email that was classified as LEGITIMATE with ${pct}% confidence. Briefly explain what made it safe, and give one practical tip about what to always watch for even in legitimate-looking emails. Keep it to 2-3 sentences.`
+                : `The user just analyzed an email classified as ${verdict.toUpperCase()} with ${pct}% confidence. The top threat indicators were: ${notable.join(', ')}. The explanation was: "${data.explanation}". Give a brief, educational response (3-4 sentences) that: 1) explains what these indicators mean in simple terms, 2) teaches them how to spot this type of attack in the future, 3) recommends one concrete action they should take right now.`;
+
+            const res = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Api-Key': apiKey },
+                body: JSON.stringify({ message: prompt, context: data }),
+            });
+
+            removeChatMsg(typingId);
+
+            if (res.ok) {
+                const reply = await res.json();
+                addChatMsg(reply.reply, 'bot');
+            }
+        } catch (e) {
+            removeChatMsg(typingId);
+        }
+    }
+
+    function renderResults(data) {
+        const results = document.getElementById('resultsSection');
+        const banner = document.getElementById('verdictBanner');
+        const vt = document.getElementById('verdictText');
+        const vs = document.getElementById('verdictSub');
+
+        if (data.verdict === 'phishing') {
+            banner.className = 'rounded-xl p-6 text-center bg-gradient-to-r from-red-900/60 to-red-800/40 border border-red-500/30';
+            vt.textContent = 'PHISHING DETECTED'; vt.className = 'text-3xl font-bold mb-1 text-red-400'; vs.textContent = 'This email contains phishing indicators';
+        } else if (data.verdict === 'suspicious') {
+            banner.className = 'rounded-xl p-6 text-center bg-gradient-to-r from-yellow-900/60 to-yellow-800/40 border border-yellow-500/30';
+            vt.textContent = 'SUSPICIOUS'; vt.className = 'text-3xl font-bold mb-1 text-yellow-400'; vs.textContent = 'Manual review recommended';
+        } else {
+            banner.className = 'rounded-xl p-6 text-center bg-gradient-to-r from-green-900/60 to-green-800/40 border border-green-500/30';
+            vt.textContent = 'LEGITIMATE'; vt.className = 'text-3xl font-bold mb-1 text-green-400'; vs.textContent = 'No significant phishing indicators found';
+        }
+
+        const pct = Math.round(data.confidence * 100);
+        const offset = 326.73 - (326.73 * pct / 100);
+        const gauge = document.getElementById('gaugeCircle');
+        gauge.setAttribute('stroke', data.verdict === 'phishing' ? '#ff4757' : data.verdict === 'suspicious' ? '#ffa502' : '#00d26a');
+        setTimeout(() => { gauge.style.strokeDashoffset = offset; }, 100);
+        document.getElementById('gaugeText').textContent = pct + '%';
+        document.getElementById('methodText').textContent = 'Method: ' + (data.raw_features?.classification?.method || 'heuristic').toUpperCase();
+
+        const actions = { quarantine: { icon: '🛑', color: 'text-red-400' }, alert: { icon: '⚠️', color: 'text-yellow-400' }, pass: { icon: '✅', color: 'text-green-400' } };
+        const a = actions[data.recommended_action] || actions.pass;
+        document.getElementById('actionIcon').textContent = a.icon;
+        document.getElementById('actionLabel').className = 'text-lg font-semibold ' + a.color;
+        document.getElementById('actionLabel').textContent = data.recommended_action.toUpperCase();
+        document.getElementById('actionDesc').textContent = data.action_description || '';
+
+        const container = document.getElementById('indicatorsContainer'); container.innerHTML = '';
+        const labels = {
+            suspicious_urls: { label: 'Suspicious URLs', color: 'bg-red-500' },
+            urgency_language: { label: 'Urgency / Authority Language', color: 'bg-orange-500' },
+            header_anomalies: { label: 'Header Anomalies', color: 'bg-yellow-500' },
+            grammatical_anomalies: { label: 'Grammatical Anomalies', color: 'bg-purple-500' },
+            html_suspicious: { label: 'HTML Suspicious Elements', color: 'bg-pink-500' },
+        };
+        for (const [key, meta] of Object.entries(labels)) {
+            const indicator = data.threat_indicators?.[key]; if (!indicator) continue;
+            const score = Math.round((indicator.score || 0) * 100);
+            const details = indicator.details || [];
+            const div = document.createElement('div');
+            div.innerHTML = `
+                <div class="flex items-center justify-between mb-1.5"><span class="text-sm text-gray-300">${meta.label}</span><span class="text-sm font-mono ${score > 50 ? 'text-red-400' : score > 20 ? 'text-yellow-400' : 'text-gray-500'}">${score}%</span></div>
+                <div class="w-full bg-dark-900 rounded-full h-2 mb-2"><div class="progress-bar ${meta.color} h-2 rounded-full" style="width: 0%"></div></div>
+                ${details.length ? `<div class="ml-2 space-y-0.5">${details.slice(0, 5).map(d => `<p class="text-xs text-gray-500">&bull; ${escapeHtml(d)}</p>`).join('')}</div>` : ''}`;
+            container.appendChild(div);
+            setTimeout(() => { div.querySelector('.progress-bar').style.width = score + '%'; }, 150);
+        }
+
+        document.getElementById('explanationText').textContent = data.explanation || '';
+        document.getElementById('educationText').textContent = data.education_note || '';
+        document.getElementById('educationSection').classList.toggle('hidden', data.verdict === 'legitimate');
+        document.getElementById('rawFeaturesJson').textContent = JSON.stringify(data.raw_features, null, 2);
+        results.classList.remove('hidden');
+        results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // --- Dashboard ---
+    async function loadDashboard() {
+        try {
+            const res = await fetch('/api/dashboard/stats');
+            const d = await res.json();
+            document.getElementById('kpi-total').textContent = d.total_analyzed;
+            document.getElementById('kpi-phishing').textContent = d.phishing_count;
+            document.getElementById('kpi-suspicious').textContent = d.suspicious_count;
+            document.getElementById('kpi-legitimate').textContent = d.legitimate_count;
+            document.getElementById('kpi-rate').textContent = d.phishing_rate + '%';
+            document.getElementById('kpi-confidence').textContent = Math.round(d.avg_confidence * 100) + '%';
+
+            const breakdown = document.getElementById('dashboardBreakdown');
+            const bLabels = {
+                suspicious_urls: { label: 'Suspicious URLs', color: 'bg-red-500' },
+                urgency_language: { label: 'Urgency Language', color: 'bg-orange-500' },
+                header_anomalies: { label: 'Header Anomalies', color: 'bg-yellow-500' },
+                grammatical_anomalies: { label: 'Grammar Anomalies', color: 'bg-purple-500' },
+                html_suspicious: { label: 'HTML Suspicious', color: 'bg-pink-500' },
+            };
+            if (d.total_analyzed > 0) {
+                breakdown.innerHTML = '';
+                for (const [key, meta] of Object.entries(bLabels)) {
+                    const score = Math.round((d.threat_breakdown[key] || 0) * 100);
+                    const div = document.createElement('div');
+                    div.innerHTML = `<div class="flex items-center justify-between mb-1"><span class="text-sm text-gray-300">${meta.label}</span><span class="text-xs font-mono text-gray-500">${score}%</span></div><div class="w-full bg-dark-900 rounded-full h-2"><div class="progress-bar ${meta.color} h-2 rounded-full" style="width: 0%"></div></div>`;
+                    breakdown.appendChild(div);
+                    setTimeout(() => { div.querySelector('.progress-bar').style.width = score + '%'; }, 100);
+                }
+            }
+
+            const tbody = document.getElementById('recentTable');
+            if (d.recent_analyses.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-gray-600 text-center py-6">No analyses yet</td></tr>';
+            } else {
+                tbody.innerHTML = d.recent_analyses.map(a => {
+                    const vc = a.verdict === 'phishing' ? 'text-red-400 bg-red-500/10' : a.verdict === 'suspicious' ? 'text-yellow-400 bg-yellow-500/10' : 'text-green-400 bg-green-500/10';
+                    const time = new Date(a.timestamp).toLocaleTimeString();
+                    return `<tr class="border-t border-white/5"><td class="py-2 px-3 text-xs text-gray-500">${time}</td><td class="py-2 px-3 text-xs text-gray-300 max-w-[200px] truncate">${escapeHtml(a.subject)}</td><td class="py-2 px-3"><span class="badge ${vc} border-0">${a.verdict}</span></td><td class="py-2 px-3 text-xs font-mono text-gray-400">${Math.round(a.confidence * 100)}%</td><td class="py-2 px-3 text-xs text-gray-500">${a.recommended_action}</td></tr>`;
+                }).join('');
+            }
+        } catch (e) { console.error('Dashboard load failed:', e); }
+    }
+
+    // --- History ---
+    let historyPage = 0;
+    const historyPageSize = 20;
+    let historyTotal = 0;
+
+    async function loadHistory() {
+        const filter = document.getElementById('historyFilter').value;
+        try {
+            const res = await fetch(`/api/scans?limit=${historyPageSize}&offset=${historyPage * historyPageSize}`);
+            const data = await res.json();
+            historyTotal = data.total;
+            let scans = data.scans;
+            if (filter !== 'all') scans = scans.filter(s => s.verdict === filter);
+
+            document.getElementById('historyCount').textContent = historyTotal + ' records';
+            document.getElementById('historyPageInfo').textContent = `Page ${historyPage + 1} of ${Math.max(1, Math.ceil(historyTotal / historyPageSize))}`;
+            document.getElementById('historyPrevBtn').disabled = historyPage === 0;
+            document.getElementById('historyNextBtn').disabled = (historyPage + 1) * historyPageSize >= historyTotal;
+
+            const tbody = document.getElementById('historyTable');
+            if (scans.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-gray-600 text-center py-8">No scan records found</td></tr>';
+                return;
+            }
+            tbody.innerHTML = scans.map(s => {
+                const vc = s.verdict === 'phishing' ? 'text-red-400 bg-red-500/10' : s.verdict === 'suspicious' ? 'text-yellow-400 bg-yellow-500/10' : 'text-green-400 bg-green-500/10';
+                const dt = new Date(s.timestamp);
+                const dateStr = dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                const typeIcon = s.input_type === 'eml' ? '📧' : s.input_type === 'screenshot' ? '📸' : '📝';
+                return `<tr class="border-t border-white/5 hover:bg-white/5 cursor-pointer transition-colors" onclick="showScanDetail(${s.id})">
+                    <td class="py-2 px-3 text-xs text-gray-500 font-mono">#${s.id}</td>
+                    <td class="py-2 px-3 text-xs text-gray-400">${dateStr}</td>
+                    <td class="py-2 px-3 text-xs">${typeIcon} ${s.input_type}</td>
+                    <td class="py-2 px-3 text-xs text-gray-300 max-w-[180px] truncate">${escapeHtml(s.subject || '(no subject)')}</td>
+                    <td class="py-2 px-3"><span class="badge ${vc} border-0">${s.verdict}</span></td>
+                    <td class="py-2 px-3 text-xs font-mono text-gray-400">${Math.round(s.confidence * 100)}%</td>
+                    <td class="py-2 px-3 text-xs text-gray-500">${s.recommended_action}</td>
+                    <td class="py-2 px-3 text-xs text-accent-blue">View &rarr;</td>
+                </tr>`;
+            }).join('');
+        } catch (e) {
+            console.error('History load failed:', e);
+            document.getElementById('historyTable').innerHTML = '<tr><td colspan="8" class="text-red-400 text-center py-8">Failed to load history</td></tr>';
+        }
+    }
+
+    function historyPrev() { if (historyPage > 0) { historyPage--; loadHistory(); } }
+    function historyNext() { if ((historyPage + 1) * historyPageSize < historyTotal) { historyPage++; loadHistory(); } }
+
+    async function showScanDetail(scanId) {
+        try {
+            const res = await fetch(`/api/scans/${scanId}`);
+            if (!res.ok) throw new Error('Scan not found');
+            const s = await res.json();
+            document.getElementById('detailId').textContent = '#' + s.id;
+            document.getElementById('detailSubject').textContent = s.subject || '(no subject)';
+            document.getElementById('detailBody').textContent = s.body_preview || '(no body)';
+            const verdictEl = document.getElementById('detailVerdict');
+            verdictEl.textContent = s.verdict.toUpperCase();
+            verdictEl.className = 'text-sm font-bold ' + (s.verdict === 'phishing' ? 'text-red-400' : s.verdict === 'suspicious' ? 'text-yellow-400' : 'text-green-400');
+            document.getElementById('detailConfidence').textContent = Math.round(s.confidence * 100) + '%';
+            document.getElementById('detailInputType').textContent = s.input_type;
+            const elapsed = s.raw_features?.analysis_time_seconds || s.analysis_time_seconds || 0;
+            document.getElementById('detailTime').textContent = elapsed.toFixed(2) + 's';
+            document.getElementById('detailExplanation').textContent = s.explanation || '—';
+            document.getElementById('detailEducation').textContent = s.education_note || '—';
+            document.getElementById('detailRaw').textContent = JSON.stringify(s.raw_features || {}, null, 2);
+            const detailEl = document.getElementById('historyDetail');
+            detailEl.classList.remove('hidden');
+            detailEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } catch (e) {
+            alert('Failed to load scan detail: ' + e.message);
+        }
+    }
+
+    // --- Chat ---
+    function toggleChatSettings() { document.getElementById('chatSettings').classList.toggle('hidden'); }
+
+    async function sendChat() {
+        const input = document.getElementById('chatInput');
+        const msg = input.value.trim(); if (!msg) return;
+        const apiKey = document.getElementById('chatApiKey').value || localStorage.getItem('anthropic_api_key');
+        if (!apiKey) { alert('Please set your Anthropic API key in the chat settings (gear icon).'); return; }
+
+        addChatMsg(msg, 'user'); input.value = '';
+        const typingId = addChatMsg('<span class="chat-spinner"></span>', 'bot', true);
+
+        try {
+            const res = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Api-Key': apiKey },
+                body: JSON.stringify({ message: msg, context: lastAnalysisResult }),
+            });
+            if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || 'Chat failed'); }
+            const data = await res.json();
+            removeChatMsg(typingId);
+            addChatMsg(data.reply, 'bot');
+        } catch (e) {
+            removeChatMsg(typingId);
+            addChatMsg('Error: ' + e.message, 'bot');
+        }
+    }
+
+    let chatMsgId = 0;
+    function addChatMsg(content, role, isHtml = false) {
+        const container = document.getElementById('chatMessages');
+        const div = document.createElement('div');
+        const id = 'cmsg-' + (++chatMsgId);
+        div.id = id;
+        const cls = role === 'user' ? 'chat-msg-user ml-auto text-white' : 'chat-msg-bot text-gray-300';
+        div.className = `${cls} rounded-lg px-3 py-2 text-sm max-w-[90%]`;
+        if (isHtml) div.innerHTML = content; else div.textContent = content;
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+        return id;
+    }
+
+    function addSystemMsg(html) {
+        const container = document.getElementById('chatMessages');
+        const div = document.createElement('div');
+        div.className = 'chat-msg-system rounded-lg px-3 py-2 text-xs text-green-300/80';
+        div.innerHTML = html;
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+    }
+
+    function removeChatMsg(id) { const el = document.getElementById(id); if (el) el.remove(); }
+    function escapeHtml(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
+
+    // ── Download KPI Dashboard as PDF ────────────────────────────────────────
+    async function downloadDashboardPDF() {
+        const btn = document.getElementById('btnDownloadDashboard');
+        const original = btn.innerHTML;
+        btn.innerHTML = '<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg> Generating...';
+        btn.disabled = true;
+        try {
+            const dashboard = document.getElementById('page-dashboard');
+            const canvas = await html2canvas(dashboard, {
+                backgroundColor: '#0f0f1a',
+                scale: 2,
+                useCORS: true,
+                logging: false,
+                windowWidth: dashboard.scrollWidth,
+                windowHeight: dashboard.scrollHeight,
+            });
+            const { jsPDF } = window.jspdf;
+            const imgData = canvas.toDataURL('image/png');
+            const pdfW = 297; // A4 landscape mm
+            const pdfH = 210;
+            const imgW = canvas.width;
+            const imgH = canvas.height;
+            const ratio = Math.min(pdfW / imgW, pdfH / imgH) * 3.7795; // px to mm
+            const pdf = new jsPDF({ orientation: imgW > imgH ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' });
+            const pageW = pdf.internal.pageSize.getWidth();
+            const pageH = pdf.internal.pageSize.getHeight();
+            const scaledW = imgW * ratio;
+            const scaledH = imgH * ratio;
+            const x = (pageW - scaledW) / 2;
+            // If taller than one page, tile across pages
+            if (scaledH <= pageH) {
+                pdf.addImage(imgData, 'PNG', x, 0, scaledW, scaledH);
+            } else {
+                let yOffset = 0;
+                while (yOffset < scaledH) {
+                    if (yOffset > 0) pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', x, -yOffset, scaledW, scaledH);
+                    yOffset += pageH;
+                }
+            }
+            const ts = new Date().toISOString().slice(0,19).replace(/[:T]/g, '-');
+            pdf.save(`phishing_dashboard_${ts}.pdf`);
+        } catch(e) {
+            console.error('PDF generation failed:', e);
+            alert('PDF generation failed: ' + e.message);
+        } finally {
+            btn.innerHTML = original;
+            btn.disabled = false;
+        }
+    }
+
+    // ── Export History as CSV ─────────────────────────────────────────────────
+    async function exportHistoryCSV() {
+        const btn = document.getElementById('btnExportCSV');
+        const original = btn.innerHTML;
+        btn.innerHTML = '<svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg> Exporting...';
+        btn.disabled = true;
+        try {
+            const res = await fetch('/api/export/history');
+            if (!res.ok) throw new Error('Server error ' + res.status);
+            const blob = await res.blob();
+            const disposition = res.headers.get('Content-Disposition') || '';
+            const match = disposition.match(/filename=([^\s;]+)/);
+            const filename = match ? match[1] : 'phishing_history.csv';
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch(e) {
+            console.error('CSV export failed:', e);
+            alert('Export failed: ' + e.message);
+        } finally {
+            btn.innerHTML = original;
+            btn.disabled = false;
+        }
+    }
+</script>
+</body>
+</html>
